@@ -1,0 +1,3 @@
+interface:
+  display_name: "Chanlun TDX Analysis"
+  short_description: "Analyze A-share stocks using Chanlun (czsc) and TongDaXin (pytdx) data"

@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+
+# Python virtualenvs & bytecode
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Large local K-line & evaluation caches
+backtest_chanlun_1y/cache*/
+backtest_chanlun_1y/minute_archive_10y/
+backtest_chanlun_1y/*.pkl
+backtest_chanlun_1y/*.log
+
+# Oversized raw 10Y/20Y tick-by-tick JSON dumps (>10MB)
+backtest_chanlun_1y/backtest_results_10y_*.json
+backtest_chanlun_1y/backtest_results_20y_*.json
+backtest_chanlun_1y/backtest_results_5y_*.json
+backtest_chanlun_1y/backtest_results_v2_10y_*.json
+backtest_chanlun_1y/backtest_v3_3_duckdb_1_5_10y.json
+backtest_chanlun_1y/backup_v1_original/backtest_results_10y_*.json
+backtest_chanlun_1y/backup_v1_original/backtest_results_5y_*.json
+
+# Personal unrelated files in root
+证券持仓与总资产配置分析_*.xlsx
+MFi_Highlights_Search.html
+mfi_highlights.html
+mfi_highlights_db.json
+parse_mfi.py
+fix_dates.py
+generate_html.py
+cleanup_mac.sh
