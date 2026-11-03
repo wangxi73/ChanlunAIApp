@@ -115,10 +115,35 @@ def step_v4_2_production(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
         if not idx_e or dt not in idx_e["day_by_date"]:
             continue
         if strict_1445_isolation:
-            ck_s = ("ISO1453", sym, dt)
-            if ck_s not in eval_cache:
-                eval_cache[ck_s] = get_v4_1_isolated_1453_slice(idx_e, dt)
-            _, _, _, sn = eval_cache[ck_s]
+            ck_sn = ("SNAP1453", sym, dt)
+            if ck_sn not in eval_cache:
+                l_15 = bisect.bisect_left(idx_e["m15_dates"], dt)
+                r_15 = bisect.bisect_right(idx_e["m15_dates"], dt)
+                t15_pre = [t for t in idx_e["m15_tuples"][l_15:r_15] if not str(t[0]).endswith("15:00") and not str(t[0]).endswith("15:00:00")]
+                m5_1450 = idx_e.get("m5_1450_by_date", {}).get(dt)
+                if m5_1450:
+                    t15_pre = t15_pre + [m5_1450]
+                if t15_pre:
+                    i_d_prev = bisect.bisect_left(idx_e["day_dates"], dt)
+                    pre_c = idx_e["day"][i_d_prev - 1]["close"] if i_d_prev > 0 else t15_pre[0][1]
+                    p_1445 = t15_pre[-1][4]
+                    q_pct = ((p_1445 - pre_c) / pre_c * 100.0) if pre_c > 0 else 0.0
+                    b_vol = tot_vol = q_amt_sum = 0.0
+                    scale_f = (48.0 / 46.0) if m5_1450 else (16.0 / 15.0)
+                    for tup in t15_pre:
+                        bo, bh, bl, bc, bv = tup[1], tup[2], tup[3], tup[4], tup[5]
+                        bamt = tup[6] if len(tup) > 6 and tup[6] and tup[6] > 0 else (bv * bc)
+                        rng = bh - bl
+                        w = ((bc - bl) / rng) if rng > 0 else (0.55 if bc >= bo else 0.45)
+                        b_vol += bv * w
+                        tot_vol += bv
+                        q_amt_sum += bamt
+                    q_bdom = round((2.0 * b_vol - tot_vol) / tot_vol * 100.0, 1) if tot_vol > 0 else 0.0
+                    q_amt_yi = round((q_amt_sum * scale_f) / 1e8, 2)
+                    eval_cache[ck_sn] = {"lastPrice": p_1445, "preClose": pre_c, "pctChange": round(q_pct, 2), "amountYi": q_amt_yi, "buyerDom": q_bdom}
+                else:
+                    eval_cache[ck_sn] = None
+            sn = eval_cache[ck_sn]
             if sn and sn["lastPrice"] > 0:
                 day_snaps[sym] = sn
         else:
@@ -137,7 +162,7 @@ def step_v4_2_production(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
         if m[0] not in s1_seen:
             stage1_metas.append(m); s1_seen.add(m[0])
 
-    # Stage 2：三周期缠论结构评估
+    # Stage 2：三周期缠论结构评估（仅对46只Stage1入选股+持仓股展开完整280根K线切片）
     evaluated = []
     for meta in stage1_metas:
         sym = meta[0]
@@ -146,10 +171,13 @@ def step_v4_2_production(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
             ev = eval_cache[ck_e]
         else:
             idx_e = indexed.get(sym)
-            if not idx_e:
+            if not idx_e or dt not in idx_e["day_by_date"]:
                 eval_cache[ck_e] = None; continue
             if strict_1445_isolation:
-                d_b, m60_b, m15_b, sn = eval_cache[("ISO1453", sym, dt)]
+                ck_s = ("ISO1453", sym, dt)
+                if ck_s not in eval_cache:
+                    eval_cache[ck_s] = get_v4_1_isolated_1453_slice(idx_e, dt)
+                d_b, m60_b, m15_b, sn = eval_cache[ck_s]
             else:
                 d_b, m60_b, m15_b = get_pit_bars_slice(idx_e, dt)
                 sn = day_snaps.get(sym)
