@@ -245,9 +245,10 @@ def step_v4_2_production(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
                     zs60 and sell_p_ref > zs60["zg"]
                     and bi60 and bi60["type"] == "up" and (div60 is None or div60 >= 0.75)
                 )
-                # 审计合规修复1：科创板(sh688)最低申报 200股，触发50%减半锁利时科创板持仓须 >= 400股（非科创板 >= 200股）
+                # 审计合规修复1：科创板(sh688)最低申报 200股，触发50%减半锁利时科创板真实持仓须 >= 400股（非科创板 >= 200股）
                 min_half_lock_sh = 400 if sym.startswith("sh688") else 200
-                if in_60m_main and (not h.get("half_profit_locked")) and h["shares"] >= min_half_lock_sh and sell_p_ref > h["avg_cost"] * 1.01:
+                raw_sh_now = h.get("raw_shares", h["shares"])
+                if in_60m_main and (not h.get("half_profit_locked")) and raw_sh_now >= min_half_lock_sh and sell_p_ref > h["avg_cost"] * 1.01:
                     sell_ratio = 0.5
                     sell_rsn = f"[14:54主升浪减半锁利] 60m主升不背驰+15m一卖({div15})减仓50%"
                 else:
@@ -256,7 +257,13 @@ def step_v4_2_production(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
 
         if sell_rsn:
             min_lot = 200 if sym.startswith("sh688") else 100
-            sell_sh = h["shares"] if sell_ratio >= 0.99 else max(min_lot, (int(h["shares"] * 0.5) // 100) * 100)
+            raw_sh_now = h.get("raw_shares", h["shares"])
+            if sell_ratio >= 0.99:
+                raw_sell_sh = int(raw_sh_now)
+                sell_sh = h["shares"]
+            else:
+                raw_sell_sh = max(min_lot, (int(raw_sh_now * 0.5) // 100) * 100)
+                sell_sh = round(h["shares"] * (raw_sell_sh / raw_sh_now), 4)
             thresh = get_limit_thresh(sym, dt)
             if sn_now["pctChange"] <= -thresh:
                 h["pending_sell_reason"] = f"{sell_rsn}({dt}尾盘14:54封跌停转次日早盘两步法)"
@@ -271,16 +278,18 @@ def step_v4_2_production(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
             pnl_pct = (exec_p - h["avg_cost"]) / h["avg_cost"] * 100.0
             state["closed_trades"].append({
                 "symbol": sym, "name": h["name"], "buy_date": h["buy_date"], "sell_date": dt,
-                "shares": sell_sh, "buy_price": h["avg_cost"], "sell_price": exec_p,
+                "shares": int(raw_sell_sh), "buy_price": h["avg_cost"], "sell_price": exec_p,
                 "pnl_amt": round(pnl_amt, 2), "pnl_pct": round(pnl_pct, 2), "reason": sell_rsn
             })
-            state["trades"].append({"date": dt, "action": "SELL", "symbol": sym, "name": h["name"], "shares": sell_sh, "price": exec_p, "amount": round(gross, 2), "fee": fee, "reason": sell_rsn})
+            state["trades"].append({"date": dt, "action": "SELL", "symbol": sym, "name": h["name"], "shares": int(raw_sell_sh), "price": exec_p, "amount": round(gross, 2), "fee": fee, "reason": sell_rsn})
             sold_today.add(sym)
-            if sell_sh >= h["shares"]:
+            if sell_sh >= h["shares"] - 1e-3:
                 last_exits[sym] = (dt, exec_p)
                 del holdings[sym]
             else:
-                h["shares"] -= sell_sh
+                if "raw_shares" in h:
+                    h["raw_shares"] = int(raw_sh_now - raw_sell_sh)
+                h["shares"] = round(h["shares"] - sell_sh, 4)
                 h["half_profit_locked"] = True
                 h["half_lock_price"] = sell_p_ref
 
@@ -435,17 +444,21 @@ def step_v4_2_production(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
 
             t_amt = min((eff_stock_cap if cand["kind"] == "stock" else eff_etf_cap) * pos_sc, micro_liq_cap)
             alloc = min(budget * 0.95, t_amt, rem_room)
-            # 用 close 算缠论信号与涨跌，但在下单算“能买几手（lots）”那一刻用 raw_price = price / ratio_factor 校验真实手数
+            # 用 close 算缠论信号与涨跌，但在下单算“能买几手（lots）”那一刻用 raw_price = price / ratio_factor 校验真实手数，
+            # 并将真实股数 raw_shares 除以 ratio_factor 转化为前复权记账股数 shares，使投入本金 gross = shares * close == raw_shares * raw_price 100% 守恒
+            rf = dbar_1500.get("ratio_factor", 1.0)
+            rf = rf if (rf and rf > 0) else 1.0
             order_p = max(cand["price"], dbar_1500["close"])
-            raw_price = _get_raw_board_price(sym, order_p)
+            raw_price = order_p / rf
             min_board_sh = 200 if sym.startswith("sh688") else 100
             if alloc < raw_price * min_board_sh:
                 continue
             lots = int(alloc // (raw_price * 100.0))
-            shares = lots * 100
+            raw_shares = lots * 100
             # 审计合规修复1：上交所科创板(sh688)单笔委托必须 >= 200 股
-            if shares < min_board_sh:
+            if raw_shares < min_board_sh:
                 continue
+            shares = round(raw_shares / rf, 4)
 
             order_ratio = (shares * dbar_1500["close"]) / max(1.0, full_day_amt)
             impact_bps = min(5.0, max(3.0, 3.0 + (order_ratio / 0.0025) * 2.0))
@@ -459,7 +472,7 @@ def step_v4_2_production(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
             rem_room -= gross
             bought += 1
             holdings[sym] = {
-                "name": cand["name"], "kind": cand["kind"], "shares": shares,
+                "name": cand["name"], "kind": cand["kind"], "shares": shares, "raw_shares": int(raw_shares),
                 "avg_cost": round(tot_cost / shares, 4), "last_price": dbar_1500["close"],
                 "buy_date": dt, "entry_regime": regime, "init_stop": raw_stop,
                 "frozen_bot_fx_low": round(bot_fx_low, 4),
@@ -467,7 +480,7 @@ def step_v4_2_production(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
                 "frozen_15m_dd": round(zs15["dd"], 4) if zs15 else 0.0,
                 "half_profit_locked": False,
             }
-            state["trades"].append({"date": dt, "action": "BUY", "symbol": sym, "name": cand["name"], "shares": shares, "price": exec_p, "amount": round(gross, 2), "fee": fee})
+            state["trades"].append({"date": dt, "action": "BUY", "symbol": sym, "name": cand["name"], "shares": int(raw_shares), "price": exec_p, "amount": round(gross, 2), "fee": fee})
 
     for sym, h in holdings.items():
         dbar_1500 = indexed.get(sym, {}).get("day_by_date", {}).get(dt)
