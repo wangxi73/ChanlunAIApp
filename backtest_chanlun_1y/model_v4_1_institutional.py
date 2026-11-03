@@ -882,7 +882,7 @@ def step_v4_1_institutional(state: dict, rosters_dt: dict, fmap: dict, indexed: 
     evaluated = []
     for meta in stage1_metas:
         sym = meta[0]
-        ck_e = ("EV_V42", True, sym, dt)
+        ck_e = ("EVAL_V41", sym, dt)
         if ck_e in eval_cache:
             ev = eval_cache[ck_e]
         else:
