@@ -506,10 +506,12 @@ def step_v4_0_zero_prior(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
             rf = dbar.get("ratio_factor", 1.0)
             rf = rf if (rf and rf > 0) else 1.0
             raw_price = dbar["close"] / rf
+            min_board_sh = 200 if sym.startswith("sh688") else 100
             lots = int(alloc // (raw_price * 100.0))
-            shares = lots * 100
-            if shares < 100:
+            raw_shares = lots * 100
+            if raw_shares < min_board_sh:
                 continue
+            shares = round(raw_shares / rf, 4)
 
             exec_p, gross, fee = calc_trade_cost("BUY", sym, cand["kind"], dt, dbar["close"], shares)
             tot_cost = gross + fee

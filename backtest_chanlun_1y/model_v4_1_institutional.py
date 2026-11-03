@@ -837,38 +837,62 @@ def step_v4_1_institutional(state: dict, rosters_dt: dict, fmap: dict, indexed: 
         if s in fmap and s not in seen_a:
             all_act.append(fmap[s]); seen_a.add(s)
 
-    # 构建 14:53:30 物理隔离盘口快照字典 day_snaps_1453
+    # 构建 14:53:30 物理隔离盘口快照字典 day_snaps_1453 (与 V4.2 共享 SNAP1453 缓存)
     day_snaps_1453 = {}
-    isolated_slices = {}
     for sym, _, _ in all_act:
         idx_e = indexed.get(sym)
         if not idx_e or dt not in idx_e["day_by_date"]:
             continue
-        ck_s = ("SLICE_1453", sym, dt)
-        if ck_s in eval_cache:
-            d_b, m60_b, m15_b, sn_1453 = eval_cache[ck_s]
-        else:
-            d_b, m60_b, m15_b, sn_1453 = get_v4_1_isolated_1453_slice(idx_e, dt)
-            eval_cache[ck_s] = (d_b, m60_b, m15_b, sn_1453)
+        ck_sn = ("SNAP1453", sym, dt)
+        if ck_sn not in eval_cache:
+            l_15 = bisect.bisect_left(idx_e["m15_dates"], dt)
+            r_15 = bisect.bisect_right(idx_e["m15_dates"], dt)
+            t15_pre = [t for t in idx_e["m15_tuples"][l_15:r_15] if not str(t[0]).endswith("15:00") and not str(t[0]).endswith("15:00:00")]
+            m5_1450 = idx_e.get("m5_1450_by_date", {}).get(dt)
+            if m5_1450:
+                t15_pre = t15_pre + [m5_1450]
+            if t15_pre:
+                i_d_prev = bisect.bisect_left(idx_e["day_dates"], dt)
+                pre_c = idx_e["day"][i_d_prev - 1]["close"] if i_d_prev > 0 else t15_pre[0][1]
+                p_1445 = t15_pre[-1][4]
+                q_pct = ((p_1445 - pre_c) / pre_c * 100.0) if pre_c > 0 else 0.0
+                b_vol = tot_vol = q_amt_sum = 0.0
+                scale_f = (48.0 / 46.0) if m5_1450 else (16.0 / 15.0)
+                for tup in t15_pre:
+                    bo, bh, bl, bc, bv = tup[1], tup[2], tup[3], tup[4], tup[5]
+                    bamt = tup[6] if len(tup) > 6 and tup[6] and tup[6] > 0 else (bv * bc)
+                    rng = bh - bl
+                    w = ((bc - bl) / rng) if rng > 0 else (0.55 if bc >= bo else 0.45)
+                    b_vol += bv * w
+                    tot_vol += bv
+                    q_amt_sum += bamt
+                q_bdom = round((2.0 * b_vol - tot_vol) / tot_vol * 100.0, 1) if tot_vol > 0 else 0.0
+                q_amt_yi = round((q_amt_sum * scale_f) / 1e8, 2)
+                eval_cache[ck_sn] = {"lastPrice": p_1445, "preClose": pre_c, "pctChange": round(q_pct, 2), "amountYi": q_amt_yi, "buyerDom": q_bdom}
+            else:
+                eval_cache[ck_sn] = None
+        sn_1453 = eval_cache[ck_sn]
         if sn_1453 and sn_1453["lastPrice"] > 0:
             day_snaps_1453[sym] = sn_1453
-            isolated_slices[sym] = (d_b, m60_b, m15_b, sn_1453)
 
     # Stage 1：板块内无量纲 Z-Score 初筛
     stage1_metas = get_v4_1_zscore_stage1_candidates(active_rosters, day_snaps_1453, holdings, top_k=46)
 
-    # Stage 2：基于 14:45 物理隔离序列计算三周期缠论得分与冻结契约
+    # Stage 2：基于 14:45 物理隔离序列计算三周期缠论得分与冻结契约 (与 V4.2 共享 ISO1453 缓存)
     evaluated = []
     for meta in stage1_metas:
         sym = meta[0]
-        ck_e = ("EVAL_V41", sym, dt)
+        ck_e = ("EV_V42", True, sym, dt)
         if ck_e in eval_cache:
             ev = eval_cache[ck_e]
         else:
-            sl_pack = isolated_slices.get(sym)
-            if not sl_pack:
+            idx_e = indexed.get(sym)
+            if not idx_e or dt not in idx_e["day_by_date"]:
                 eval_cache[ck_e] = None; continue
-            d_b, m60_b, m15_b, sn_1453 = sl_pack
+            ck_s = ("ISO1453", sym, dt)
+            if ck_s not in eval_cache:
+                eval_cache[ck_s] = get_v4_1_isolated_1453_slice(idx_e, dt)
+            d_b, m60_b, m15_b, sn_1453 = eval_cache[ck_s]
             if not d_b or not m15_b:
                 eval_cache[ck_e] = None; continue
             ev = evaluate_asset_v4_1(meta, d_b, m60_b, m15_b, sn_1453)
@@ -1080,10 +1104,12 @@ def step_v4_1_institutional(state: dict, rosters_dt: dict, fmap: dict, indexed: 
             rf = dbar_1500.get("ratio_factor", 1.0)
             rf = rf if (rf and rf > 0) else 1.0
             raw_price = max(cand["price"], dbar_1500["close"]) / rf
+            min_board_sh = 200 if sym.startswith("sh688") else 100
             lots = int(alloc // (raw_price * 100.0))
-            shares = lots * 100
-            if shares < 100:
+            raw_shares = lots * 100
+            if raw_shares < min_board_sh:
                 continue
+            shares = round(raw_shares / rf, 4)
 
             # 根据买单占全天成交额比例动态计提 3.0 ~ 5.0 bps 尾盘集合竞价冲击滑点
             order_ratio = (shares * dbar_1500["close"]) / max(1.0, full_day_amt)
