@@ -96,6 +96,8 @@ def upgrade_one_symbol_2020_2024(symbol: str, force: bool = False) -> Tuple[str,
         return "missing_base", 0
 
     chk = pd.read_parquet(p_15m, columns=["date", "source"])
+    if not force and ("baostock_real_15m" in set(chk["source"].unique())):
+        return "already_real", 0
     need_synth = chk[(chk["date"] >= "2020-01-01") & (chk["date"] <= "2024-10-31") & (chk["source"] == "unified_ratio_qfq")]
     if need_synth.empty and not force:
         return "already_real", 0
@@ -209,11 +211,11 @@ def main():
             "done": idx, "total": len(symbols), "pct": round(idx * 100.0 / len(symbols), 2),
             "current_symbol": sym, "last_status": st, "last_15m_bars": n_bars,
             "last_sec": round(dt_sym, 1), "avg_sec_per_fetched": round(avg_s, 1),
-            "stats": stats, "elapsed_min": round((time.time() - t0) / 60.0, 1),
+            "stats": stats, "elapsed_min": round((time.time() - t0) / 60.0, 1), "remaining": rem, "eta_min": eta_min,
         }
         prog_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
         if st == "upgraded" or idx % 20 == 0 or idx == len(symbols):
-            print(f"[{idx}/{len(symbols)} ({payload['pct']:.1f}%)] {sym} -> {st} ({n_bars} bars in {dt_sym:.1f}s) | stats={stats} | avg={avg_s:.1f}s/sym", flush=True)
+            print(f"[{idx}/{len(symbols)} ({payload['pct']:.1f}%)] {sym} -> {st} ({n_bars} bars in {dt_sym:.1f}s) | rem={rem} | ETA={eta_min:.1f}m | stats={stats}", flush=True)
         if st == "bs_blocked":
             print("BaoStock rate limit detected, sleeping 60s before resuming...", flush=True)
             time.sleep(60)
@@ -271,11 +273,11 @@ def main():
             "done": idx, "total": len(symbols), "pct": round(idx * 100.0 / len(symbols), 2),
             "current_symbol": sym, "last_status": st, "last_15m_bars": n_bars,
             "last_sec": round(dt_sym, 1), "avg_sec_per_fetched": round(avg_s, 1),
-            "stats": stats, "elapsed_min": round((time.time() - t0) / 60.0, 1),
+            "stats": stats, "elapsed_min": round((time.time() - t0) / 60.0, 1), "remaining": rem, "eta_min": eta_min,
         }
         prog_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
         if st == "upgraded" or idx % 20 == 0 or idx == len(symbols):
-            print(f"[{idx}/{len(symbols)} ({payload['pct']:.1f}%)] {sym} -> {st} ({n_bars} bars in {dt_sym:.1f}s) | stats={stats} | avg={avg_s:.1f}s/sym", flush=True)
+            print(f"[{idx}/{len(symbols)} ({payload['pct']:.1f}%)] {sym} -> {st} ({n_bars} bars in {dt_sym:.1f}s) | rem={rem} | ETA={eta_min:.1f}m | stats={stats}", flush=True)
         if st == "bs_blocked":
             print("BaoStock rate limit detected, sleeping 60s before resuming...", flush=True)
             time.sleep(60)
@@ -333,11 +335,11 @@ def main():
             "done": idx, "total": len(symbols), "pct": round(idx * 100.0 / len(symbols), 2),
             "current_symbol": sym, "last_status": st, "last_15m_bars": n_bars,
             "last_sec": round(dt_sym, 1), "avg_sec_per_fetched": round(avg_s, 1),
-            "stats": stats, "elapsed_min": round((time.time() - t0) / 60.0, 1),
+            "stats": stats, "elapsed_min": round((time.time() - t0) / 60.0, 1), "remaining": rem, "eta_min": eta_min,
         }
         prog_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
         if st == "upgraded" or idx % 20 == 0 or idx == len(symbols):
-            print(f"[{idx}/{len(symbols)} ({payload['pct']:.1f}%)] {sym} -> {st} ({n_bars} bars in {dt_sym:.1f}s) | stats={stats} | avg={avg_s:.1f}s/sym", flush=True)
+            print(f"[{idx}/{len(symbols)} ({payload['pct']:.1f}%)] {sym} -> {st} ({n_bars} bars in {dt_sym:.1f}s) | rem={rem} | ETA={eta_min:.1f}m | stats={stats}", flush=True)
         if st == "bs_blocked":
             print("BaoStock rate limit detected, sleeping 60s before resuming...", flush=True)
             time.sleep(60)
@@ -395,11 +397,11 @@ def main():
             "done": idx, "total": len(symbols), "pct": round(idx * 100.0 / len(symbols), 2),
             "current_symbol": sym, "last_status": st, "last_15m_bars": n_bars,
             "last_sec": round(dt_sym, 1), "avg_sec_per_fetched": round(avg_s, 1),
-            "stats": stats, "elapsed_min": round((time.time() - t0) / 60.0, 1),
+            "stats": stats, "elapsed_min": round((time.time() - t0) / 60.0, 1), "remaining": rem, "eta_min": eta_min,
         }
         prog_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
         if st == "upgraded" or idx % 20 == 0 or idx == len(symbols):
-            print(f"[{idx}/{len(symbols)} ({payload['pct']:.1f}%)] {sym} -> {st} ({n_bars} bars in {dt_sym:.1f}s) | stats={stats} | avg={avg_s:.1f}s/sym", flush=True)
+            print(f"[{idx}/{len(symbols)} ({payload['pct']:.1f}%)] {sym} -> {st} ({n_bars} bars in {dt_sym:.1f}s) | rem={rem} | ETA={eta_min:.1f}m | stats={stats}", flush=True)
         if st == "bs_blocked":
             print("BaoStock rate limit detected, sleeping 60s before resuming...", flush=True)
             time.sleep(60)
@@ -457,11 +459,73 @@ def main():
             "done": idx, "total": len(symbols), "pct": round(idx * 100.0 / len(symbols), 2),
             "current_symbol": sym, "last_status": st, "last_15m_bars": n_bars,
             "last_sec": round(dt_sym, 1), "avg_sec_per_fetched": round(avg_s, 1),
-            "stats": stats, "elapsed_min": round((time.time() - t0) / 60.0, 1),
+            "stats": stats, "elapsed_min": round((time.time() - t0) / 60.0, 1), "remaining": rem, "eta_min": eta_min,
         }
         prog_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
         if st == "upgraded" or idx % 20 == 0 or idx == len(symbols):
-            print(f"[{idx}/{len(symbols)} ({payload['pct']:.1f}%)] {sym} -> {st} ({n_bars} bars in {dt_sym:.1f}s) | stats={stats} | avg={avg_s:.1f}s/sym", flush=True)
+            print(f"[{idx}/{len(symbols)} ({payload['pct']:.1f}%)] {sym} -> {st} ({n_bars} bars in {dt_sym:.1f}s) | rem={rem} | ETA={eta_min:.1f}m | stats={stats}", flush=True)
+        if st == "bs_blocked":
+            print("BaoStock rate limit detected, sleeping 60s before resuming...", flush=True)
+            time.sleep(60)
+            _safe_relogin()
+
+    try:
+        bs.logout()
+    except Exception:
+        pass
+    init_lexar_duckdb()
+    print(f"Completed all {len(symbols)} symbols -> {stats}", flush=True)
+
+
+if __name__ == "__main__":
+    main()
+
+
+def main():
+    import baostock as bs
+    parser = argparse.ArgumentParser(description="从 BaoStock 单线程拉取 2020-01 ~ 2024-08 真实分钟K线到 Lexar-2T")
+    parser.add_argument("--symbols", nargs="+", default=["all_a"], help="core(核心523只优先) / all_a(全市场，核心池排最前)")
+    parser.add_argument("--force", action="store_true")
+    args = parser.parse_args()
+
+    meta_df = pd.read_parquet(ARCHIVE_DIR / "metadata" / "all_a_stocks.parquet")
+    if args.symbols == ["core"]:
+        symbols = meta_df[meta_df["in_core"]]["symbol"].tolist()
+    elif args.symbols == ["all_a"]:
+        symbols = meta_df["symbol"].tolist()
+    else:
+        symbols = args.symbols
+
+    prog_file = ARCHIVE_DIR / "logs" / "baostock_2020_2024_progress.json"
+    prog_file.parent.mkdir(parents=True, exist_ok=True)
+
+    lg = bs.login()
+    print(f"BaoStock single-thread login: {lg.error_code} {lg.error_msg} | Total symbols: {len(symbols)}", flush=True)
+    t0 = time.time()
+    stats = {"upgraded": 0, "already_real": 0, "skipped_non_stock": 0, "no_bs_data": 0}
+    net_fetched = 0
+    net_time = 0.0
+
+    for idx, sym in enumerate(symbols, 1):
+        ts = time.time()
+        st, n_bars = upgrade_one_symbol_2020_2024(sym, force=args.force)
+        dt_sym = time.time() - ts
+        stats[st] = stats.get(st, 0) + 1
+        if st == "upgraded":
+            net_fetched += 1
+            net_time += dt_sym
+        avg_s = (net_time / net_fetched) if net_fetched > 0 else 12.0
+        rem = len(symbols) - idx
+        eta_min = round(rem * avg_s / 60.0, 1)
+        payload = {
+            "done": idx, "total": len(symbols), "pct": round(idx * 100.0 / len(symbols), 2),
+            "current_symbol": sym, "last_status": st, "last_15m_bars": n_bars,
+            "last_sec": round(dt_sym, 1), "avg_sec_per_fetched": round(avg_s, 1),
+            "stats": stats, "elapsed_min": round((time.time() - t0) / 60.0, 1), "remaining": rem, "eta_min": eta_min,
+        }
+        prog_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+        if st == "upgraded" or idx % 20 == 0 or idx == len(symbols):
+            print(f"[{idx}/{len(symbols)} ({payload['pct']:.1f}%)] {sym} -> {st} ({n_bars} bars in {dt_sym:.1f}s) | rem={rem} | ETA={eta_min:.1f}m | stats={stats}", flush=True)
         if st == "bs_blocked":
             print("BaoStock rate limit detected, sleeping 60s before resuming...", flush=True)
             time.sleep(60)

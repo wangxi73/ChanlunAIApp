@@ -1076,8 +1076,11 @@ def step_v4_1_institutional(state: dict, rosters_dt: dict, fmap: dict, indexed: 
 
             t_amt = min((eff_stock_cap if cand["kind"] == "stock" else eff_etf_cap) * pos_sc, micro_liq_cap)
             alloc = min(budget * 0.95, t_amt, rem_room)
-            # 按 14:53:30 预算价格下达手数，按 15:00 真实收盘价 + 冲击滑点 (3~5 bps) 结算
-            lots = int(alloc // (max(cand["price"], dbar_1500["close"]) * 100.0))
+            # 用 close 算缠论信号与涨跌，但在下单算“能买几手（lots）”那一刻用 raw_price = price / ratio_factor 校验真实手数
+            rf = dbar_1500.get("ratio_factor", 1.0)
+            rf = rf if (rf and rf > 0) else 1.0
+            raw_price = max(cand["price"], dbar_1500["close"]) / rf
+            lots = int(alloc // (raw_price * 100.0))
             shares = lots * 100
             if shares < 100:
                 continue

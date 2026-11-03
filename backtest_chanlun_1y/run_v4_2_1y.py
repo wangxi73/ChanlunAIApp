@@ -24,7 +24,7 @@ def load_v4_2_1y_duckdb(use_dual_channel_hs: bool = False):
         ORDER BY date
     """).fetchall()
     all_dates = [r[0] for r in bench_rows]
-    trade_dates = [d for d in all_dates if d >= "2025-10-30"]
+    trade_dates = [d for d in all_dates if "2025-10-30" <= d <= "2026-10-29"]
 
     print(f"1. Building V4.2 Asymmetric Buffered Rosters (DualHS={use_dual_channel_hs})...")
     rosters_by_date, needed_syms, full_meta_map = build_v4_1_asymmetric_buffered_rosters(
@@ -87,11 +87,12 @@ def load_v4_2_1y_duckdb(use_dual_channel_hs: bool = False):
         prev_c = e["day"][-1]["close"] if e["day"] else o
         pct = ((c - prev_c) / prev_c * 100.0) if prev_c > 0 else 0.0
         true_amt = (amt / 100.0) if (sym.startswith("sh688") and int(v) % 100 == 0) else amt
-        # 还原当日真实除权盘面交易价 raw_price
-        raw_p = round(c / hfq_f, 4) if (hfq_f and hfq_f > 1.0 and rf_f == 1.0 and c > 300.0) else c
+        # 还原当日真实除权盘面交易价 raw_price = price / ratio_factor
+        rf = float(rf_f) if (rf_f and rf_f > 0) else 1.0
+        raw_p = round(c / rf, 4)
         bar = {
             "symbol": sym, "time": dt, "open": o, "high": h, "low": l, "close": c,
-            "raw_price": raw_p, "volume": v, "amount": true_amt, "preClose": prev_c, "pctChange": pct
+            "ratio_factor": rf, "raw_price": raw_p, "volume": v, "amount": true_amt, "preClose": prev_c, "pctChange": pct
         }
         e["day"].append(bar)
         e["day_dates"].append(dt)

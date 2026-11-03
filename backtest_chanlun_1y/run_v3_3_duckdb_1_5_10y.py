@@ -459,7 +459,10 @@ def simulate_v3_3(name, rosters_by_date, fmap, indexed, trade_dates, bmap, eval_
                 liq_cap = max(250000.0, snap["amountYi"] * 1e8 * 0.01) if (snap and snap["amountYi"] > 0) else 2500000.0
                 t_amt = min((eff_stock_cap if cand["kind"] == "stock" else eff_etf_cap) * pos_sc, liq_cap)
                 alloc = min(budget * 0.95, t_amt, rem_room)
-                lots = int(alloc // (dbar["close"] * 100.0))
+                rf = dbar.get("ratio_factor", 1.0)
+                rf = rf if (rf and rf > 0) else 1.0
+                raw_price = dbar["close"] / rf
+                lots = int(alloc // (raw_price * 100.0))
                 shares = lots * 100
                 if shares < 100:
                     continue

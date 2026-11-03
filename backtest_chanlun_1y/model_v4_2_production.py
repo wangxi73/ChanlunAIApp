@@ -267,6 +267,9 @@ def step_v4_2_production(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
     overext_map = compute_v4_1_quadratic_overext_penalties(evaluated)
     def _get_raw_board_price(sym_code, qfq_p):
         d_rec = indexed.get(sym_code, {}).get("day_by_date", {}).get(dt)
+        rf = d_rec.get("ratio_factor", 1.0) if d_rec else 1.0
+        if rf and rf > 0:
+            return round(qfq_p / rf, 4)
         if d_rec and d_rec.get("raw_price", 0) > 0:
             return d_rec["raw_price"]
         return qfq_p
@@ -404,12 +407,13 @@ def step_v4_2_production(state: dict, rosters_dt: dict, fmap: dict, indexed: dic
 
             t_amt = min((eff_stock_cap if cand["kind"] == "stock" else eff_etf_cap) * pos_sc, micro_liq_cap)
             alloc = min(budget * 0.95, t_amt, rem_room)
-            # 审计修复4：按真实除权盘面交易价校验单手门槛，按等比前复权价格记账保持净值连续
-            raw_board_p = _get_raw_board_price(sym, dbar_1500["close"])
+            # 用 close 算缠论信号与涨跌，但在下单算“能买几手（lots）”那一刻用 raw_price = price / ratio_factor 校验真实手数
+            order_p = max(cand["price"], dbar_1500["close"])
+            raw_price = _get_raw_board_price(sym, order_p)
             min_board_sh = 200 if sym.startswith("sh688") else 100
-            if alloc < raw_board_p * min_board_sh:
+            if alloc < raw_price * min_board_sh:
                 continue
-            lots = int(alloc // (max(cand["price"], dbar_1500["close"]) * 100.0))
+            lots = int(alloc // (raw_price * 100.0))
             shares = lots * 100
             # 审计合规修复1：上交所科创板(sh688)单笔委托必须 >= 200 股
             if shares < min_board_sh:

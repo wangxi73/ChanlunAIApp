@@ -45,11 +45,14 @@ dt_crash_end = datetime.strptime("2026-08-03", "%Y-%m-%d")
 ax1.axvspan(dt_crash_start, dt_crash_end, color="#ef4444", alpha=0.14, label="[CRASH保护区] 7月高位急跌连续19个交易日 100% 空仓持币避险")
 ax2.axvspan(dt_crash_start, dt_crash_end, color="#ef4444", alpha=0.18)
 
-ax1.plot(dates, v_42c, color="#10b981", linewidth=2.7, label=f"V4.2-C 实战双通道·15%复利 [14:45隔离+防高位追回+锁利垫] (期末 ¥{v_42c[-1]:.2f}万, +19.00% | 回撤 -19.27% | 胜率 51.6% | 盈亏比 1.75)")
-ax1.plot(dates, v_42a, color="#f59e0b", linewidth=2.2, label=f"V4.2-A 纯流动性·15%复利 [14:45隔离+防高位追回+锁利垫] (期末 ¥{v_42a[-1]:.2f}万, +15.38% | 胜率 49.2% | 盈亏比 1.78)")
-ax1.plot(dates, v_42d, color="#a855f7", linewidth=1.8, linestyle="-.", label=f"V4.2-D 实战双通道·12%复利 [14:45隔离] (期末 ¥{v_42d[-1]:.2f}万, +3.74% | 回撤 -17.76% | 胜率 51.2% | 盈亏比 1.47)")
-ax1.plot(dates, v_40, color="#38bdf8", linewidth=1.7, linestyle="--", label=f"V4.0 基线 [DualChannel · 未做14:45物理隔离] (期末 ¥{v_40[-1]:.2f}万, +10.16% | 胜率 48.2% | 盈亏比 1.24)")
-ax1.plot(dates, v_41, color="#6366f1", linewidth=1.4, linestyle=":", label=f"V4.1 实验版 [含纯Z-Score平滑状态机] (期末 ¥{v_41[-1]:.2f}万, -13.70%)")
+m_42c, m_42a, m_42d = r_42c["metrics"], r_42a["metrics"], r_42d["metrics"]
+dates_40 = [datetime.strptime(x["date"], "%Y-%m-%d") for x in r_40["history"]]
+dates_41 = [datetime.strptime(x["date"], "%Y-%m-%d") for x in r_41["history"]]
+ax1.plot(dates, v_42c, color="#10b981", linewidth=2.7, label=f"V4.2-C 实战双通道·15%复利 [ratio_factor真实手数校验] (期末 ¥{v_42c[-1]:.2f}万, {m_42c['total_return_pct']:+.2f}% | 回撤 -{m_42c['max_drawdown_pct']:.2f}% | 夏普 {m_42c['sharpe_ratio']:.2f} | 胜率 {m_42c['win_rate_pct']:.1f}%)")
+ax1.plot(dates, v_42a, color="#f59e0b", linewidth=2.2, label=f"V4.2-A 纯流动性·15%复利 [ratio_factor真实手数校验] (期末 ¥{v_42a[-1]:.2f}万, {m_42a['total_return_pct']:+.2f}% | 胜率 {m_42a['win_rate_pct']:.1f}% | 盈亏比 {m_42a['profit_loss_ratio']:.2f})")
+ax1.plot(dates, v_42d, color="#a855f7", linewidth=1.8, linestyle="-.", label=f"V4.2-D 实战双通道·12%复利 [ratio_factor真实手数校验] (期末 ¥{v_42d[-1]:.2f}万, {m_42d['total_return_pct']:+.2f}% | 回撤 -{m_42d['max_drawdown_pct']:.2f}% | 胜率 {m_42d['win_rate_pct']:.1f}%)")
+ax1.plot(dates_40, v_40, color="#38bdf8", linewidth=1.7, linestyle="--", label=f"V4.0 基线 [DualChannel · 未做14:45物理隔离] (期末 ¥{v_40[-1]:.2f}万, +10.16% | 胜率 48.2% | 盈亏比 1.24)")
+ax1.plot(dates_41, v_41, color="#6366f1", linewidth=1.4, linestyle=":", label=f"V4.1 实验版 [含纯Z-Score平滑状态机] (期末 ¥{v_41[-1]:.2f}万, -13.70%)")
 ax1.plot(dates, v_bench, color="#cbd5e1", linewidth=1.6, linestyle=":", label=f"业绩基准：沪深300指数等值净值 (期末 ¥{v_bench[-1]:.2f}万, -14.18%)")
 ax1.axhline(100.0, color="#64748b", linewidth=1)
 

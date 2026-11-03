@@ -35,7 +35,7 @@ def load_v4_1_1y_duckdb(use_dual_channel_hs: bool = True):
     print(f"2. Loading 1d/60m/15m K-lines from DuckDB for {len(needed_syms)} symbols ({time.time()-t0:.1f}s)...")
 
     rows_1d = con.execute(f"""
-        SELECT symbol, date, open, high, low, close, volume, amount
+        SELECT symbol, date, open, high, low, close, volume, amount, ratio_factor
         FROM kline_1d
         WHERE symbol IN ({sym_list_sql}) AND date >= '2024-06-01' AND close > 0
         ORDER BY symbol, date
@@ -63,12 +63,13 @@ def load_v4_1_1y_duckdb(use_dual_channel_hs: bool = True):
         "snaps": {}
     } for s in needed_syms}
 
-    for sym, dt, o, h, l, c, v, amt in rows_1d:
+    for sym, dt, o, h, l, c, v, amt, rf_f in rows_1d:
         e = indexed[sym]
         prev_c = e["day"][-1]["close"] if e["day"] else o
         pct = ((c - prev_c) / prev_c * 100.0) if prev_c > 0 else 0.0
         true_amt = (amt / 100.0) if (sym.startswith("sh688") and int(v) % 100 == 0) else amt
-        bar = {"symbol": sym, "time": dt, "open": o, "high": h, "low": l, "close": c, "volume": v, "amount": true_amt, "preClose": prev_c, "pctChange": pct}
+        rf = float(rf_f) if (rf_f and rf_f > 0) else 1.0
+        bar = {"symbol": sym, "time": dt, "open": o, "high": h, "low": l, "close": c, "ratio_factor": rf, "raw_price": round(c / rf, 4), "volume": v, "amount": true_amt, "preClose": prev_c, "pctChange": pct}
         e["day"].append(bar)
         e["day_dates"].append(dt)
         e["day_by_date"][dt] = bar
